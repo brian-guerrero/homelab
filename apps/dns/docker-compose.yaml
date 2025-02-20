@@ -1,0 +1,56 @@
+services:
+  cloudflared:
+    container_name: cloudflared
+    image: cloudflare/cloudflared:latest
+    command: proxy-dns
+    environment:
+      - "TUNNEL_DNS_UPSTREAM=https://1.1.1.1/dns-query,https://1.0.0.1/dns-query,https://9.9.9.9/dns-query,https://149.112.112.112/dns-query"
+      # Listen on an unprivileged port
+      - "TUNNEL_DNS_PORT=5053"
+      # Listen on all interfaces
+      - "TUNNEL_DNS_ADDRESS=0.0.0.0"
+
+    restart: always
+    networks:
+      pihole_internal:
+        ipv4_address: 172.20.0.2
+    security_opt:
+      - no-new-privileges:true
+
+  pihole:
+    container_name: pihole
+    image: pihole/pihole:latest
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "67:67/udp"
+      - "500:80/tcp"
+    environment:
+      TZ: 'America/Chicago'
+      WEBPASSWORD: 'password'
+      PIHOLE_DNS_: '172.20.0.2#5053;1.1.1.1'
+      DNSMASQ_LISTENING: 'all'
+    volumes:
+      - './config/:/etc/pihole/'
+      - './etc-dnsmasq.d/:/etc/dnsmasq.d/'
+    networks:
+      - pihole_internal
+      - proxy
+    depends_on:
+      - cloudflared
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pihole-http.rule=Host(`pihole.guerrero.local`)"
+      - "traefik.http.routers.pihole-http.entrypoints=web"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.services.pihole.loadbalancer.server.port=80"
+
+networks:
+  pihole_internal:
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+    name: pihole_internal
+  proxy:
+    external: true
