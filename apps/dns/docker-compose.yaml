@@ -24,7 +24,7 @@ services:
       - "53:53/tcp"
       - "53:53/udp"
       - "67:67/udp"
-      - "500:80/tcp"
+      - "4080:80/tcp"
     environment:
       TZ: 'America/Chicago'
       WEBPASSWORD: 'password'
